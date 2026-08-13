@@ -2,11 +2,11 @@
 session_start();
 
 if (
-    !isset($_SESSION['reset_verified']) ||
-    $_SESSION['reset_verified'] !== true ||
-    !isset($_SESSION['reset_instructor_email'])
+    !isset($_SESSION['password_reset_verified']) ||
+    $_SESSION['password_reset_verified'] !== true ||
+    !isset($_SESSION['password_reset_email'])
 ) {
-    header("Location: instructor_forgot_password.php");
+    header("Location: forgot_password.php");
     exit();
 }
 ?>
@@ -48,8 +48,8 @@ if (
     </ul>
 
     <div class="nav-actions">
-      <a href="instructor_portal.php" class="nbtn nbtn-primary active student-btn">
-        <i class="fas fa-chalkboard-teacher"></i> Instructor
+      <a href="student_portal.php" class="nbtn nbtn-primary active student-btn">
+        <i class="fas fa-user-graduate"></i> Student
       </a>
       <div class="hamburger" id="hamburger" onclick="toggleMenu()">
         <span></span><span></span><span></span>
@@ -65,8 +65,8 @@ if (
     <a href="../index.php#contact" onclick="closeMenu()"><i class="fas fa-envelope" style="color:var(--sky);width:20px"></i> Contact</a>
     <div class="m-divider"></div>
     <div class="m-actions">
-      <a href="instructor_portal.php" class="nbtn nbtn-primary">
-        <i class="fas fa-chalkboard-teacher"></i> Instructor Portal
+      <a href="student_portal.php" class="nbtn nbtn-primary">
+        <i class="fas fa-user-graduate"></i> Student Portal
       </a>
     </div>
   </div>
@@ -87,7 +87,7 @@ if (
         </div>
 
         <div class="portal-pill">
-          <div class="pill-dot"></div> Instructor Portal
+          <div class="pill-dot"></div> Student Portal
         </div>
 
         <!---- Reset Password Form ---->
@@ -97,11 +97,11 @@ if (
           <div style="margin-bottom:24px;">
             <h2 style="font-size:18px;font-weight:700;margin:0 0 6px;">Reset your password</h2>
             <p style="font-size:13px;color:var(--muted);margin:0;line-height:1.6;">
-              Choose a strong new password for your instructor account.
+              Choose a strong new password for your student account.
             </p>
           </div>
 
-          <form method="POST" action="instructor_account_process.php" id="reset-form">
+          <form method="POST" action="student_account_process.php" id="reset-form">
             <!-- New Password -->
             <div class="fg">
               <label class="flabel" for="rp-pass">New Password</label>
@@ -200,13 +200,13 @@ if (
               <?php unset($_SESSION['success']); ?>
             <?php endif; ?>
 
-            <button type="submit" class="submit-btn" name="set_new_password" id="submit-btn">
+            <button type="submit" class="submit-btn" name="reset_password" id="submit-btn">
               <i class="fas fa-key"></i>
               <span>Update Password</span>
             </button>
           </form>
 
-          <p class="terms-txt">Remembered it? <a href="instructor_portal.php">Back to Sign In</a></p>
+          <p class="terms-txt">Remembered it? <a href="student_portal.php">Back to Sign In</a></p>
         </div>
       </div>
     </div>
@@ -220,61 +220,57 @@ if (
       const val = document.getElementById('rp-pass').value;
 
       const rules = [
-        { id: 'len', test: val.length >= 8 },
-        { id: 'upper', test: /[A-Z]/.test(val) },
-        { id: 'lower', test: /[a-z]/.test(val) },
-        { id: 'num', test: /[0-9]/.test(val) },
+        { id: 'len',     test: val.length >= 8 },
+        { id: 'upper',   test: /[A-Z]/.test(val) },
+        { id: 'lower',   test: /[a-z]/.test(val) },
+        { id: 'num',     test: /[0-9]/.test(val) },
         { id: 'special', test: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(val) },
       ];
 
       let passed = 0;
       rules.forEach(r => {
         const icon = document.getElementById('icon-' + r.id);
-        const row = document.getElementById('rule-' + r.id);
-
+        const row  = document.getElementById('rule-' + r.id);
         if (r.test) {
           icon.className = 'fas fa-circle-check';
           icon.style.color = '#10b981';
-          row.style.color = '#e8efff';
+          row.style.color  = '#e8efff';
           passed++;
         } else {
           icon.className = 'fas fa-circle-xmark';
           icon.style.color = '#f43f5e';
-          row.style.color = 'var(--muted)';
+          row.style.color  = 'var(--muted)';
         }
       });
 
-      const bar = document.getElementById('strength-bar');
+      const bar   = document.getElementById('strength-bar');
       const label = document.getElementById('strength-label');
       const levels = [
-        { w: '0%', bg: 'transparent', txt: '—', col: 'var(--muted)' },
-        { w: '20%', bg: '#f43f5e', txt: 'Very Weak', col: '#f43f5e' },
-        { w: '40%', bg: '#f97316', txt: 'Weak', col: '#f97316' },
-        { w: '60%', bg: '#f59e0b', txt: 'Fair', col: '#f59e0b' },
-        { w: '80%', bg: '#3d7fff', txt: 'Strong', col: '#3d7fff' },
-        { w: '100%', bg: '#10b981', txt: 'Very Strong', col: '#10b981' },
+        { w: '0%',   bg: 'transparent', txt: '—',           col: 'var(--muted)' },
+        { w: '20%',  bg: '#f43f5e',     txt: 'Very Weak',   col: '#f43f5e' },
+        { w: '40%',  bg: '#f97316',     txt: 'Weak',        col: '#f97316' },
+        { w: '60%',  bg: '#f59e0b',     txt: 'Fair',        col: '#f59e0b' },
+        { w: '80%',  bg: '#3d7fff',     txt: 'Strong',      col: '#3d7fff' },
+        { w: '100%', bg: '#10b981',     txt: 'Very Strong', col: '#10b981' },
       ];
 
       const lvl = val.length === 0 ? 0 : Math.min(passed, 5);
-      bar.style.width = levels[lvl].w;
+      bar.style.width      = levels[lvl].w;
       bar.style.background = levels[lvl].bg;
-      label.textContent = levels[lvl].txt;
-      label.style.color = levels[lvl].col;
+      label.textContent    = levels[lvl].txt;
+      label.style.color    = levels[lvl].col;
     }
 
     function matchCheck() {
-      const pass = document.getElementById('rp-pass').value;
+      const pass    = document.getElementById('rp-pass').value;
       const confirm = document.getElementById('rp-confirm').value;
-      const msg = document.getElementById('match-msg');
+      const msg     = document.getElementById('match-msg');
 
-      if (confirm.length === 0) {
-        msg.style.display = 'none';
-        return;
-      }
+      if (confirm.length === 0) { msg.style.display = 'none'; return; }
 
-      msg.style.display = 'flex';
+      msg.style.display    = 'flex';
       msg.style.alignItems = 'center';
-      msg.style.gap = '6px';
+      msg.style.gap        = '6px';
 
       if (pass === confirm) {
         msg.innerHTML = '<i class="fas fa-circle-check" style="color:#10b981;"></i> <span style="color:#10b981;">Passwords match</span>';

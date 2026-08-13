@@ -444,7 +444,7 @@ if (
         );
 
         $_SESSION['success'] = "Login successful.";
-        redirectTo("instructor_dashboard1.php");
+        redirectTo("instructor_dashboard.php");
     }
 
     //==================================================

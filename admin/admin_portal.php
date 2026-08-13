@@ -97,6 +97,8 @@
               </div>
             </div>
 
+            <a href="admin_account_process.php?action=admin_forgot" class="forgot-link">Forgot password?</a>
+
             <input type="hidden" name="latitude" id="latitude">
             <input type="hidden" name="longitude" id="longitude">
             <input type="hidden" name="city" id="city">

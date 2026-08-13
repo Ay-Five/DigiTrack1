@@ -354,7 +354,7 @@ if (isset($_POST['verify_otp'])) {
                     unset($_SESSION['verification_type']);
 
                     $conn->commit();
-                    header("Location: student_dashboard22.php");
+                    header("Location: student_dashboard.php");
                     exit();
 
                 case 'signup':
@@ -395,7 +395,7 @@ if (isset($_POST['verify_otp'])) {
                         unset($_SESSION['password_reset']);
 
                         $conn->commit();
-                        header("Location: reset_password.php");
+                        header("Location: student_reset_password.php");
                         exit();
 
                 default:

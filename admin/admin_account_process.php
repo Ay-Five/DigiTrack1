@@ -9,6 +9,13 @@ $dotenv = Dotenv::createImmutable(__DIR__ . '/../');
 $dotenv->load();
 date_default_timezone_set('Asia/Manila');
 
+//============ Forgot Password Redirect (GET) =================
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'admin_forgot') {
+    $_SESSION['allow_admin_forgot'] = true;
+    header('Location: admin_forgot_password.php');
+    exit();
+}
+
 //============ Location =================
 function redirectTo($location) {
     header("Location: {$location}");
@@ -72,7 +79,7 @@ function saveOtpHistory($conn, $admin_id, $otp, $purpose, $expires_at, $status =
 }
 
 //============ OTP History Status =================
-function updateOtpHistoryStatus($conn, $admin_id, $otp, $status, $verified = false) {
+function updateOtpHistoryStatus($conn, $admin_id, $otp, $status, $verified = false, $purpose = 'login_verification') {
     $checkOtpTable = $conn->query("SHOW TABLES LIKE 'admin_otp_history'");
     if (!($checkOtpTable && $checkOtpTable->num_rows > 0)) {
         return;
@@ -81,15 +88,15 @@ function updateOtpHistoryStatus($conn, $admin_id, $otp, $status, $verified = fal
     if ($verified) {
         $sql = "UPDATE admin_otp_history
                 SET status = ?, verified_at = NOW()
-                WHERE admin_id = ? AND otp_code = ? AND purpose = 'login_verification' AND status = 'sent'";
+                WHERE admin_id = ? AND otp_code = ? AND purpose = ? AND status = 'sent'";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("sis", $status, $admin_id, $otp);
+        $stmt->bind_param("siss", $status, $admin_id, $otp, $purpose);
     } else {
         $sql = "UPDATE admin_otp_history
                 SET status = ?
-                WHERE admin_id = ? AND otp_code = ? AND purpose = 'login_verification' AND status = 'sent'";
+                WHERE admin_id = ? AND otp_code = ? AND purpose = ? AND status = 'sent'";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("sis", $status, $admin_id, $otp);
+        $stmt->bind_param("siss", $status, $admin_id, $otp, $purpose);
     }
 
     $stmt->execute();
@@ -102,15 +109,17 @@ function sendOtpEmail($email, $fullname, $otp, $type = 'login') {
 
     $subject = $type === 'login'
         ? "MotoSafe Admin Login OTP"
-        : "MotoSafe Admin OTP";
+        : ($type === 'password_reset' ? "MotoSafe Admin Password Reset" : "MotoSafe Admin OTP");
 
     $heading = $type === 'login'
         ? "Admin Login Verification"
-        : "Admin Verification";
+        : ($type === 'password_reset' ? "Admin Password Reset" : "Admin Verification");
 
     $description = $type === 'login'
         ? "Use the OTP below to complete your <strong style='color:#ffffff;'>MotoSafe Admin Portal</strong> login."
-        : "Use the OTP below to continue your verification.";
+        : ($type === 'password_reset'
+            ? "We received a request to reset your <strong style='color:#ffffff;'>Admin Portal</strong> password. Use the OTP below to proceed."
+            : "Use the OTP below to continue your verification.");
 
     $body = "
     <div style='margin:0;padding:40px 20px;background-color:#0a0f1e;font-family:Arial,sans-serif;'>
@@ -382,7 +391,154 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_admin_otp'])) 
     );
 
     $_SESSION['success'] = "Login successful.";
-    redirectTo("admin_dashboard2.php");
+    redirectTo("admin_dashboard.php");
+}
+
+//============ Forgot Admin Password =================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['forgot_admin_password'])) {
+    $email = trim($_POST['email'] ?? '');
+
+    if ($email === '') {
+        $_SESSION['error'] = 'Please enter your email address.';
+        redirectTo('admin_forgot_password.php');
+    }
+
+    $stmt = $conn->prepare("SELECT admin_id, fullname, email FROM admins WHERE email = ? LIMIT 1");
+    if (!$stmt) { $_SESSION['error'] = 'Database error.'; redirectTo('admin_forgot_password.php'); }
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows !== 1) {
+        $stmt->close();
+        $_SESSION['error'] = 'No admin account found with that email address.';
+        redirectTo('admin_forgot_password.php');
+    }
+
+    $admin = $result->fetch_assoc();
+    $stmt->close();
+
+    $otp            = generateOtp(6);
+    $otp_expires_at = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+
+    $_SESSION['reset_admin_id']          = $admin['admin_id'];
+    $_SESSION['reset_admin_email']       = $admin['email'];
+    $_SESSION['reset_admin_otp']         = $otp;
+    $_SESSION['reset_admin_otp_expires'] = $otp_expires_at;
+
+    saveOtpHistory($conn, $admin['admin_id'], $otp, 'password_reset', $otp_expires_at, 'sent');
+
+    $emailSent = sendOtpEmail($admin['email'], $admin['fullname'], $otp, 'password_reset');
+
+    if (!$emailSent) {
+        unset($_SESSION['reset_admin_id'], $_SESSION['reset_admin_email'],
+              $_SESSION['reset_admin_otp'], $_SESSION['reset_admin_otp_expires']);
+        $_SESSION['error'] = 'Failed to send OTP email. Please try again.';
+        redirectTo('admin_forgot_password.php');
+    }
+
+    $_SESSION['success'] = 'OTP sent to your email. Please check your inbox.';
+    redirectTo('admin_verify_otp.php');
+}
+
+//============ Verify Admin Reset OTP =================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_admin_reset_otp'])) {
+    $entered_otp = trim($_POST['otp'] ?? '');
+
+    if (!isset($_SESSION['reset_admin_id']) || !isset($_SESSION['reset_admin_otp']) || !isset($_SESSION['reset_admin_otp_expires'])) {
+        $_SESSION['error'] = 'Session expired. Please start over.';
+        redirectTo('admin_forgot_password.php');
+    }
+
+    if ($entered_otp === '') {
+        $_SESSION['error'] = 'Please enter the OTP.';
+        redirectTo('admin_verify_otp.php');
+    }
+
+    $reset_admin_id = $_SESSION['reset_admin_id'];
+    $session_otp    = $_SESSION['reset_admin_otp'];
+    $otp_expires    = $_SESSION['reset_admin_otp_expires'];
+
+    if (strtotime($otp_expires) < time()) {
+        updateOtpHistoryStatus($conn, $reset_admin_id, $session_otp, 'expired', false, 'password_reset');
+        unset($_SESSION['reset_admin_id'], $_SESSION['reset_admin_email'],
+              $_SESSION['reset_admin_otp'], $_SESSION['reset_admin_otp_expires']);
+        $_SESSION['error'] = 'OTP expired. Please request a new one.';
+        redirectTo('admin_forgot_password.php');
+    }
+
+    if ($entered_otp !== $session_otp) {
+        updateOtpHistoryStatus($conn, $reset_admin_id, $session_otp, 'failed', false, 'password_reset');
+        $_SESSION['error'] = 'Invalid OTP. Please try again.';
+        redirectTo('admin_verify_otp.php');
+    }
+
+    updateOtpHistoryStatus($conn, $reset_admin_id, $session_otp, 'used', true, 'password_reset');
+
+    $_SESSION['reset_admin_verified'] = true;
+    unset($_SESSION['reset_admin_otp'], $_SESSION['reset_admin_otp_expires']);
+
+    redirectTo('admin_reset_password.php');
+}
+
+//============ Reset Admin Password =================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_admin_password'])) {
+    if (
+        !isset($_SESSION['reset_admin_verified']) ||
+        $_SESSION['reset_admin_verified'] !== true ||
+        !isset($_SESSION['reset_admin_email'])
+    ) {
+        $_SESSION['error'] = 'Unauthorized. Please restart the password reset process.';
+        redirectTo('admin_forgot_password.php');
+    }
+
+    $email            = $_SESSION['reset_admin_email'];
+    $new_password     = trim($_POST['password'] ?? '');
+    $confirm_password = trim($_POST['confirm_password'] ?? '');
+
+    if (empty($new_password) || empty($confirm_password)) {
+        $_SESSION['error'] = 'Please fill in all password fields.';
+        redirectTo('admin_reset_password.php');
+    }
+
+    $password_pattern = "/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/";
+    if (!preg_match($password_pattern, $new_password)) {
+        $_SESSION['error'] = 'Password must be at least 8 characters with one uppercase, lowercase, number, and special character.';
+        redirectTo('admin_reset_password.php');
+    }
+
+    if ($new_password !== $confirm_password) {
+        $_SESSION['error'] = 'Passwords do not match.';
+        redirectTo('admin_reset_password.php');
+    }
+
+    $stmt = $conn->prepare("SELECT admin_id FROM admins WHERE email = ? LIMIT 1");
+    if (!$stmt) { $_SESSION['error'] = 'Database error.'; redirectTo('admin_reset_password.php'); }
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+    $admin = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$admin) {
+        $_SESSION['error'] = 'Admin account not found.';
+        redirectTo('admin_forgot_password.php');
+    }
+
+    $hashed = password_hash($new_password, PASSWORD_BCRYPT);
+    $stmt   = $conn->prepare("UPDATE admins SET password = ? WHERE admin_id = ?");
+    $stmt->bind_param("si", $hashed, $admin['admin_id']);
+
+    if (!$stmt->execute()) {
+        $stmt->close();
+        $_SESSION['error'] = 'Failed to update password. Please try again.';
+        redirectTo('admin_reset_password.php');
+    }
+    $stmt->close();
+
+    unset($_SESSION['reset_admin_id'], $_SESSION['reset_admin_email'], $_SESSION['reset_admin_verified']);
+
+    $_SESSION['success'] = 'Password reset successfully. Please sign in with your new password.';
+    redirectTo('admin_portal.php');
 }
 
 redirectTo("admin_portal.php");

@@ -1,5 +1,15 @@
 <?php
-    session_start();?>
+    session_start();
+    // Guard: must have either a pending login or a pending reset
+    if (
+        !isset($_SESSION['pending_admin_email']) &&
+        !isset($_SESSION['reset_admin_email'])
+    ) {
+        header('Location: admin_portal.php');
+        exit();
+    }
+    $isReset = isset($_SESSION['reset_admin_email']);
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -18,22 +28,21 @@
                 <div class="success-overlay" id="successOverlay">
                 <div class="checkmark-ring">✓</div>
                 <div class="success-title">Identity <span>Verified!</span></div>
-                <p class="success-sub">You're all set. Welcome to Digitract.</p>
-                <button class="btn-continue">Continue to Dashboard →</button>
+                <p class="success-sub">You're all set. Welcome to MotoSafe.</p>
+                <button class="btn-continue">Continue →</button>
                 </div>
                 <div class="card-main" id="cardMain">
                 <div class="badge"><span class="badge-dot"></span> OTP Verification</div>
                 <h1 class="card-title">Verify Your<br><span>Identity.</span></h1>
                 <?php
-                    $email = $_SESSION['verify_email'] ?? '';
-                    $parts = explode('@', $email);
-                    if (count($parts) === 2) {
-                        $name = $parts[0];
-                        $domain = $parts[1];
+                    $email = $isReset
+                        ? ($_SESSION['reset_admin_email'] ?? '')
+                        : ($_SESSION['pending_admin_email'] ?? '');
 
-                        $visible = substr($name, 0, 3); 
-                        $masked = str_repeat('*', max(strlen($name) - 3, 5));
-
+                    if ($email !== '' && strpos($email, '@') !== false) {
+                        [$name, $domain] = explode('@', $email, 2);
+                        $visible     = substr($name, 0, 3);
+                        $masked      = str_repeat('*', max(strlen($name) - 3, 5));
                         $maskedEmail = $visible . $masked . '@' . $domain;
                     } else {
                         $maskedEmail = $email;
@@ -73,7 +82,7 @@
                         <?php unset($_SESSION['success']); ?>
                     </div>
                 <?php endif; ?>
-                <button type="submit" name="verify_admin_otp" class="btn-verify" id="verifyBtn" disabled>
+                <button type="submit" name="<?= $isReset ? 'verify_admin_reset_otp' : 'verify_admin_otp' ?>" class="btn-verify" id="verifyBtn" disabled>
                     Verify OTP
                 </button>
                 <div class="resend-row">
@@ -86,7 +95,7 @@
                 </p>
                 </form>
                 <div class="divider"><hr/><span>OR</span><hr/></div>
-                <a href="../index.php" class="back-link">← Back to login</a>
+                <a href="<?= $isReset ? 'admin_forgot_password.php' : 'admin_portal.php' ?>" class="back-link">← Back to <?= $isReset ? 'Forgot Password' : 'Login' ?></a>
             </div>
         </div>
     </main>
