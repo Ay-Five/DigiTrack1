@@ -25,45 +25,6 @@ digitract/
 
 ---
 
-## ⚙️ Setup Instructions
-
-### 1. Requirements
-- PHP 8.0+
-- MySQL 5.7+ / MariaDB 10.4+
-- Apache/Nginx (XAMPP, WAMP, or Laragon recommended)
-- Optional: Python + Flask service on port 5002 for reverse geocoding
-
-### 2. Database Setup
-```sql
--- In phpMyAdmin or MySQL CLI:
-SOURCE /path/to/digitract/database/schema.sql;
-```
-
-### 3. Configure DB credentials
-Edit `admin/admin_login_process.php`:
-```php
-$host   = 'localhost';
-$dbname = 'digitract';
-$dbuser = 'root';
-$dbpass = '';
-```
-
-### 4. Default Admin Login
-| Field    | Value                  |
-|----------|------------------------|
-| Email    | admin@digitract.com    |
-| Password | Admin@1234             |
-
-> ⚠️ **Change the default password immediately** via your DB or a password reset script.
-
-### 5. Place project in web root
-```
-/xampp/htdocs/digitract/     (XAMPP)
-/var/www/html/digitract/     (Linux Apache)
-```
-Then visit: `http://localhost/digitract`
-
----
 
 ## 🗺️ System Flow (from your diagram)
 
